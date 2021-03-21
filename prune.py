@@ -1,12 +1,14 @@
-import os
 import argparse
+import os
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torchvision import datasets, transforms
 
 from vgg import vgg
-import numpy as np
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 # Prune settings
 parser = argparse.ArgumentParser(description='PyTorch Slimming CIFAR prune')
@@ -18,9 +20,9 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='disables CUDA training')
 parser.add_argument('--percent', type=float, default=0.5,
                     help='scale sparse rate (default: 0.5)')
-parser.add_argument('--model', default='', type=str, metavar='PATH',
+parser.add_argument('--model', default='model_best.pth.tar', type=str, metavar='PATH',
                     help='path to raw trained model (default: none)')
-parser.add_argument('--save', default='', type=str, metavar='PATH',
+parser.add_argument('--save', default='pruned.pth.tar', type=str, metavar='PATH',
                     help='path to save prune model (default: none)')
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -65,13 +67,18 @@ for k, m in enumerate(model.modules()):
     if isinstance(m, nn.BatchNorm2d):
         weight_copy = m.weight.data.clone()
         mask = weight_copy.abs().gt(thre).float().cuda()
-        pruned = pruned + mask.shape[0] - torch.sum(mask)
+        remain_channels = torch.sum(mask)
+        if torch.sum(mask) == 0:
+            print('\r\n!please turn down the prune_ratio!\r\n')
+            remain_channels = 1
+            mask[int(torch.argmax(weight_copy))]=1
+        pruned = pruned + mask.shape[0] - remain_channels
         m.weight.data.mul_(mask)
         m.bias.data.mul_(mask)
-        cfg.append(int(torch.sum(mask)))
+        cfg.append(int(remain_channels))
         cfg_mask.append(mask.clone())
         print('layer index: {:d} \t total channel: {:d} \t remaining channel: {:d}'.
-            format(k, mask.shape[0], int(torch.sum(mask))))
+            format(k, mask.shape[0], int(remain_channels)))
     elif isinstance(m, nn.MaxPool2d):
         cfg.append('M')
 
