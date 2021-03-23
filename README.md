@@ -20,13 +20,12 @@ BN层表达式：
 
 # 代码运行
 ## Training
-RUN main.py --s 0.001  --epochs 160  --refine ''(空）
+python main.py --s 0.001   
 ## Pruning
-RUN prune.py --model model_best.pth.tar --save pruned.pth.tar --percent 0.5
+python prune.py --model model_best.pth.tar --save pruned.pth.tar --percent 0.5
 ## Retraining
-RUN main.py -refine pruned.pth.tar --epochs 40
-## Issues
-剪枝比例过高容易出现通道数为0，需要在剪枝的是的时候添加约束条件。
+python main.py -refine pruned.pth.tar --model model_pruning_best.pth.tar --epochs 40
+
 # 运行结果
 ## Training Result
 Test set ：Average loss:0.3296 ,Accuracy:9374/10000(93.74%)
