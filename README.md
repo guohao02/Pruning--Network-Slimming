@@ -32,20 +32,35 @@ RUN main.py -refine pruned.pth.tar --epochs 40
 Test set ：Average loss:0.3296 ,Accuracy:9374/10000(93.74%)
 ## Pruning Result
 layer index:3         total channel:64         remain channel:62
+
 layer index:6         total channel:64         remain channel:64
+
 layer index:10        total channel:128        remain channel:128
+
 layer index:13        total channel:128        remain channel:128
+
 layer index:17        total channel:256        remain channel:256
+
 layer index:20        total channel:256        remain channel:256
+
 layer index:23        total channel:256        remain channel:256
+
 layer index:26        total channel:256        remain channel:256
+
 layer index:30        total channel:512        remain channel:460
+
 layer index:33        total channel:512        remain channel:216
+
 layer index:36        total channel:512        remain channel:65
+
 layer index:39        total channel:512        remain channel:37
+
 layer index:43        total channel:512        remain channel:5
+
 layer index:46        total channel:512        remain channel:5
+
 layer index:49        total channel:512        remain channel:57
+
 layer index:52        total channel:512        remain channel:500
 
 ## Retraining Result
