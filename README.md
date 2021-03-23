@@ -1,6 +1,6 @@
 # 剪枝--通道剪枝
 
-# 下面介绍一篇有关剪枝的论文：
+## 下面介绍一篇有关剪枝的论文：
 Network Slimming-Learning Efficient Convolutional Networks through Network Slimming（Paper）2017年ICCV的一篇paper
 
 剪枝要满足的要求：减小模型大小；减少运行时的内存占用；在不影响精度的同时，降低计算操作数；
@@ -17,11 +17,37 @@ BN层表达式：
 
 其中的 γ为缩放因子，µB、σB由统计所得，γ和 β 均由反向传播自动优化。
 
-# Training
+
+# 代码运行
+## Training
 RUN main.py --s 0.001  --epochs 160  --refine ''(空）
-# Pruning
+## Pruning
 RUN prune.py --model model_best.pth.tar --save pruned.pth.tar --percent 0.5
-# Retraining
+## Retraining
 RUN main.py -refine pruned.pth.tar --epochs 40
-# Issues
+## Issues
 剪枝比例过高容易出现通道数为0，需要在剪枝的是的时候添加约束条件。
+# 运行结果
+## Training Result
+Test set ：Average loss:0.3296 ,Accuracy:9374/10000(93.74%)
+## Pruning Result
+layer index:3         total channel:64         remain channel:62
+layer index:6         total channel:64         remain channel:64
+layer index:10        total channel:128        remain channel:128
+layer index:13        total channel:128        remain channel:128
+layer index:17        total channel:256        remain channel:256
+layer index:20        total channel:256        remain channel:256
+layer index:23        total channel:256        remain channel:256
+layer index:26        total channel:256        remain channel:256
+layer index:30        total channel:512        remain channel:460
+layer index:33        total channel:512        remain channel:216
+layer index:36        total channel:512        remain channel:65
+layer index:39        total channel:512        remain channel:37
+layer index:43        total channel:512        remain channel:5
+layer index:46        total channel:512        remain channel:5
+layer index:49        total channel:512        remain channel:57
+layer index:52        total channel:512        remain channel:500
+
+## Retraining Result
+Test set ：Average loss:0.2848 ,Accuracy:935410000(93.54%)
+
