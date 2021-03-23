@@ -24,7 +24,7 @@ python main.py --s 0.001
 ## Pruning
 python prune.py --model model_best.pth.tar --save pruned.pth.tar --percent 0.5
 ## Retraining
-python main.py -refine pruned.pth.tar --model model_pruning_best.pth.tar --epochs 40
+python main.py --refine pruned.pth.tar --model model_pruning_best.pth.tar --epochs 40
 
 # 运行结果
 ## Training Result
