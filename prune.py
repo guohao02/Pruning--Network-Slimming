@@ -29,11 +29,11 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 model = vgg()
 if args.cuda:
-    model.cuda()
-if args.model:
-    if os.path.isfile(args.model):
+    model.cuda()#将模型加载到gpu上
+if args.model:#判断模型是否存在
+    if os.path.isfile(args.model):#判断args.model路径下是否为文件
         print("=> loading checkpoint '{}'".format(args.model))
-        checkpoint = torch.load(args.model)
+        checkpoint = torch.load(args.model)#加载文件
         args.start_epoch = checkpoint['epoch']
         best_prec1 = checkpoint['best_prec1']
         model.load_state_dict(checkpoint['state_dict'])
