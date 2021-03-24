@@ -17,8 +17,27 @@ BN层表达式：
 
 其中的 γ为缩放因子，µB、σB由统计所得，γ和 β 均由反向传播自动优化。
 # 剪枝的核心代码
-
-
+```
+#初始化
+pruned = 0  
+cfg = []  
+cfg_mask = []  
+for k, m in enumerate(model.modules()): 
+    #当m为BN层时
+    if isinstance(m, nn.BatchNorm2d):  
+        weight_copy = m.weight.data.clone()  
+        mask = weight_copy.abs().gt(thre).float().cuda()  
+        remain_channels = torch.sum(mask)  
+        if torch.sum(mask) == 0:  
+            print('\r\n!please turn down the prune_ratio!\r\n')  
+            remain_channels = 1  
+            mask[int(torch.argmax(weight_copy))]=1  
+        pruned = pruned + mask.shape[0] - remain_channels  
+        m.weight.data.mul_(mask)  
+        m.bias.data.mul_(mask)  
+        cfg.append(int(remain_channels))  
+        cfg_mask.append(mask.clone())  
+```
 # 代码运行
 ## Training
 python main.py --s 0.001   
