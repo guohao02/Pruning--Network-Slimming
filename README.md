@@ -16,6 +16,7 @@ BN层表达式：
 ![image](https://user-images.githubusercontent.com/80331072/112111348-09099680-8bef-11eb-8a96-dfabe6939d3a.png)
 
 其中的 γ为缩放因子，µB、σB由统计所得，γ和 β 均由反向传播自动优化。
+# 剪枝的核心代码
 
 
 # 代码运行
