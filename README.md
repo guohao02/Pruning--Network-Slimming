@@ -38,6 +38,9 @@ for k, m in enumerate(model.modules()):
         cfg.append(int(remain_channels))  
         cfg_mask.append(mask.clone())  
 ```
+# 代码的使用
+1.定义好自己网络net  
+2.在main.py中
 # 代码运行
 ## Training
 python main.py --s 0.001   
