@@ -37,10 +37,9 @@ for k, m in enumerate(model.modules()):
             remain_channels = 1  
             mask[int(torch.argmax(weight_copy.abs()))]=1  #获得绝对值最大的γ的索引，并将mask[索引]置为1
         pruned = pruned + mask.shape[0] - remain_channels  
+        #保留mask中元素为1的通道
         m.weight.data.mul_(mask)  
         m.bias.data.mul_(mask)  
-        cfg.append(int(remain_channels))  
-        cfg_mask.append(mask.clone())  
 ```
 
 ## 如何剪枝自己的模型？
