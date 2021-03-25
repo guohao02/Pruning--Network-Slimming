@@ -28,14 +28,14 @@ cfg_mask = []
 for k, m in enumerate(model.modules()): 
     #当m为BN层时
     if isinstance(m, nn.BatchNorm2d):  
-        weight_copy = m.weight.data.clone()  
-        mask = weight_copy.abs().gt(thre).float().cuda()  
+        weight_copy = m.weight.data.clone()  #获取γ
+        mask = weight_copy.abs().gt(thre).float().cuda()  #大于阈值的保留，小于阈值的置0
         remain_channels = torch.sum(mask)
         #当通道剪枝为0时需要保存一个通道
         if torch.sum(mask) == 0:  
             print('\r\n!please turn down the prune_ratio!\r\n')  
             remain_channels = 1  
-            mask[int(torch.argmax(weight_copy))]=1  
+            mask[int(torch.argmax(weight_copy.abs()))]=1  #获得绝对值最大的γ的索引，并将mask[索引]置为1
         pruned = pruned + mask.shape[0] - remain_channels  
         m.weight.data.mul_(mask)  
         m.bias.data.mul_(mask)  
