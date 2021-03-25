@@ -38,9 +38,13 @@ for k, m in enumerate(model.modules()):
         cfg.append(int(remain_channels))  
         cfg_mask.append(mask.clone())  
 ```
-# 代码的使用
-1.定义好自己网络net  
-2.在main.py中
+
+## 如何剪枝自己的模型？
+### 1.定义好自己网络net  
+### 2.在main.py中的vgg网络替换成自己的网络，运行main.py,得到的训练模型会被存在model_best.pth.tar中
+### 3.加载训练模型，运行prun.py,将剪枝后的模型存在pruned.pth.tar，剪枝的比例可以自己的要求去选择
+### 4.加载剪枝模型，运行main.py,训练剪枝模型，将剪枝后训练模型存在model_pruning_best.pth.tar，
+
 # 代码运行
 ## Training
 python main.py --s 0.001   
