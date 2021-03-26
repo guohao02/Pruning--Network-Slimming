@@ -1,90 +1,103 @@
-import argparse
 import os
-
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torchvision import datasets, transforms
 
+
+
 from vgg import vgg
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+#prune main
+def prune_begain(args):
+    model = pruning_model(args)
+    thre = get_thre(args, model)
+    cfg,cfg_mask = pruning_net(args, model,thre)
+    newmodel = real_prune(args, cfg, model, cfg_mask)
+
+    return newmodel
+
 
 # Prune settings
-parser = argparse.ArgumentParser(description='PyTorch Slimming CIFAR prune')
-parser.add_argument('--dataset', type=str, default='cifar10',
-                    help='training dataset (default: cifar10)')
-parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
-                    help='input batch size for testing (default: 1000)')
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='disables CUDA training')
-parser.add_argument('--percent', type=float, default=0.5,
-                    help='scale sparse rate (default: 0.5)')
-parser.add_argument('--model', default='model_best.pth.tar', type=str, metavar='PATH',
-                    help='path to raw trained model (default: none)')
-parser.add_argument('--save', default='pruned.pth.tar', type=str, metavar='PATH',
-                    help='path to save prune model (default: none)')
-args = parser.parse_args()
-args.cuda = not args.no_cuda and torch.cuda.is_available()
+def pruning_model(args):
+    model = vgg()
+    if not args.no_cuda:
+        model.cuda()
+    if args.model:
+        if os.path.isfile(args.model):
+            print("=> loading checkpoint '{}'".format(args.model))
+            checkpoint = torch.load(args.model)
+            args.start_epoch = checkpoint['epoch']
+            best_prec1 = checkpoint['best_prec1']
+            model.load_state_dict(checkpoint['state_dict'])
+            print("=> loaded checkpoint '{}' (epoch {}) Prec1: {:f}"
+                .format(args.model, checkpoint['epoch'], best_prec1))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+    print(model)
 
-model = vgg()
-if args.cuda:
-    model.cuda()#将模型加载到gpu上
-if args.model:#判断模型是否存在
-    if os.path.isfile(args.model):#判断args.model路径下是否为文件
-        print("=> loading checkpoint '{}'".format(args.model))
-        checkpoint = torch.load(args.model)#加载文件
-        args.start_epoch = checkpoint['epoch']
-        best_prec1 = checkpoint['best_prec1']
-        model.load_state_dict(checkpoint['state_dict'])
-        print("=> loaded checkpoint '{}' (epoch {}) Prec1: {:f}"
-              .format(args.model, checkpoint['epoch'], best_prec1))
-    else:
-        print("=> no checkpoint found at '{}'".format(args.resume))
+    return model
 
-print(model)
-total = 0
-for m in model.modules():
-    if isinstance(m, nn.BatchNorm2d):
-        total += m.weight.data.shape[0]
 
-bn = torch.zeros(total)
-index = 0
-for m in model.modules():
-    if isinstance(m, nn.BatchNorm2d):
-        size = m.weight.data.shape[0]
-        bn[index:(index+size)] = m.weight.data.abs().clone()
-        index += size
+def get_thre(args, model):
+    total = 0
+    for m in model.modules():
+        if isinstance(m, nn.BatchNorm2d):
+            total += m.weight.data.shape[0]
 
-y, i = torch.sort(bn)
-thre_index = int(total * args.percent)
-thre = y[thre_index]
+    bn = torch.zeros(total)
+    index = 0
+    for m in model.modules():
+        if isinstance(m, nn.BatchNorm2d):
+            size = m.weight.data.shape[0]
+            bn[index:(index+size)] = m.weight.data.abs().clone()
+            index += size
 
-pruned = 0
-cfg = []
-cfg_mask = []
-for k, m in enumerate(model.modules()):
-    if isinstance(m, nn.BatchNorm2d):
-        weight_copy = m.weight.data.clone()
-        mask = weight_copy.abs().gt(thre).float().cuda()
-        remain_channels = torch.sum(mask)
-        if torch.sum(mask) == 0:
-            print('\r\n!please turn down the prune_ratio!\r\n')
-            remain_channels = 1
-            mask[int(torch.argmax(weight_copy))]=1
-        pruned = pruned + mask.shape[0] - remain_channels
-        m.weight.data.mul_(mask)
-        m.bias.data.mul_(mask)
-        cfg.append(int(remain_channels))
-        cfg_mask.append(mask.clone())
-        print('layer index: {:d} \t total channel: {:d} \t remaining channel: {:d}'.
-            format(k, mask.shape[0], int(remain_channels)))
-    elif isinstance(m, nn.MaxPool2d):
-        cfg.append('M')
+    y, i = torch.sort(bn)
+    thre_index = int(total * args.percent)
+    thre = y[thre_index]
 
-pruned_ratio = pruned/total
+    return thre
 
-print('Pre-processing Successful!')
+
+def pruning_net(args, model,thre):
+    total = 0
+    for m in model.modules():
+        if isinstance(m, nn.BatchNorm2d):
+            total += m.weight.data.shape[0]
+
+    pruned = 0  
+    cfg = []  
+    cfg_mask = []  
+    for k, m in enumerate(model.modules()): 
+        #当m为BN层时
+        if isinstance(m, nn.BatchNorm2d):  
+            weight_copy = m.weight.data.clone()  #获取γ
+            mask = weight_copy.abs().gt(thre).float().cuda()  #大于阈值的置为1，小于阈值的置0，float()将bool值转换为float型
+            remain_channels = torch.sum(mask)#保留的通道数
+            #当通道剪枝为0时需要保存一个通道
+            if  remain_channels == 0:  
+                print('\r\n!please turn down the prune_ratio!\r\n')  
+                remain_channels = 1  
+                mask[int(torch.argmax(weight_copy.abs()))]=1  #获得绝对值最大的γ的索引，并将mask[索引]置为1
+            pruned = pruned + mask.shape[0] - remain_channels  
+            #保留mask中元素为1的通道
+            m.weight.data.mul_(mask)  
+            m.bias.data.mul_(mask) 
+            cfg.append(int(remain_channels))#保存保留的通道数
+            cfg_mask.append(mask.clone())#保存通道模型
+            print('layer index: {:d} \t total channel: {:d} \t remaining channel: {:d}'.
+                format(k, mask.shape[0], int(remain_channels)))
+        elif isinstance(m, nn.MaxPool2d):
+            cfg.append('M')
+
+    pruned_ratio = pruned/total
+    print('Pre-processing Successful!\n')
+    print('剪枝率：{:f}'.format(pruned_ratio))
+    
+    return cfg,cfg_mask
 
 
 # simple test model after Pre-processing prune (simple set BN scales to zeros)
@@ -107,45 +120,48 @@ def test():
 
     print('\nTest set: Accuracy: {}/{} ({:.1f}%)\n'.format(
         correct, len(test_loader.dataset), 100. * correct / len(test_loader.dataset)))
+
     return correct / float(len(test_loader.dataset))
 
-test()
+
 
 
 # Make real prune
-print(cfg)
-newmodel = vgg(cfg=cfg)
-newmodel.cuda()
+def real_prune(args, cfg, model, cfg_mask):
+    print(cfg)
+    newmodel = vgg(cfg=cfg)
+    newmodel.cuda()
 
-layer_id_in_cfg = 0
-start_mask = torch.ones(3)
-end_mask = cfg_mask[layer_id_in_cfg]
-for [m0, m1] in zip(model.modules(), newmodel.modules()):
-    if isinstance(m0, nn.BatchNorm2d):
-        idx1 = np.squeeze(np.argwhere(np.asarray(end_mask.cpu().numpy())))
-        m1.weight.data = m0.weight.data[idx1].clone()
-        m1.bias.data = m0.bias.data[idx1].clone()
-        m1.running_mean = m0.running_mean[idx1].clone()
-        m1.running_var = m0.running_var[idx1].clone()
-        layer_id_in_cfg += 1
-        start_mask = end_mask.clone()
-        if layer_id_in_cfg < len(cfg_mask):  # do not change in Final FC
-            end_mask = cfg_mask[layer_id_in_cfg]
-    elif isinstance(m0, nn.Conv2d):
-        idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
-        idx1 = np.squeeze(np.argwhere(np.asarray(end_mask.cpu().numpy())))
-        print('In shape: {:d} Out shape:{:d}'.format(idx0.shape[0], idx1.shape[0]))
-        w = m0.weight.data[:, idx0, :, :].clone()
-        w = w[idx1, :, :, :].clone()
-        m1.weight.data = w.clone()
-        # m1.bias.data = m0.bias.data[idx1].clone()
-    elif isinstance(m0, nn.Linear):
-        idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
-        m1.weight.data = m0.weight.data[:, idx0].clone()
+    layer_id_in_cfg = 0
+    start_mask = torch.ones(3)
+    end_mask = cfg_mask[layer_id_in_cfg]
+    for [m0, m1] in zip(model.modules(), newmodel.modules()):
+        if isinstance(m0, nn.BatchNorm2d):
+            #将保留的通道的参数传递到新的模型中
+            idx1 = np.squeeze(np.argwhere(np.asarray(end_mask.cpu().numpy())))#argwhere查找按元素分组的非零数组元素的索引,asarray将输入转换为数组，squeeze删除单维度
+            m1.weight.data = m0.weight.data[idx1].clone()
+            m1.bias.data = m0.bias.data[idx1].clone()
+            m1.running_mean = m0.running_mean[idx1].clone()
+            m1.running_var = m0.running_var[idx1].clone()
+            layer_id_in_cfg += 1
+            start_mask = end_mask.clone()
+            if layer_id_in_cfg < len(cfg_mask):  # do not change in Final FC
+                end_mask = cfg_mask[layer_id_in_cfg]
+        elif isinstance(m0, nn.Conv2d):
+            idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
+            idx1 = np.squeeze(np.argwhere(np.asarray(end_mask.cpu().numpy())))
+            print('In shape: {:d} Out shape:{:d}'.format(idx0.shape[0], idx1.shape[0]))
+            w = m0.weight.data[:, idx0, :, :].clone()
+            w = w[idx1, :, :, :].clone()
+            m1.weight.data = w.clone()
+            # m1.bias.data = m0.bias.data[idx1].clone()
+        elif isinstance(m0, nn.Linear):
+            idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
+            m1.weight.data = m0.weight.data[:, idx0].clone()
 
+    torch.save({'cfg': cfg, 'state_dict': newmodel.state_dict()}, args.save)
 
-torch.save({'cfg': cfg, 'state_dict': newmodel.state_dict()}, args.save)
+    print(newmodel)
+    model = newmodel
 
-print(newmodel)
-model = newmodel
-test()
+    return model
