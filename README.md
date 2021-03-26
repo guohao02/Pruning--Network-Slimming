@@ -50,11 +50,11 @@ for k, m in enumerate(model.modules()):
 
 # 代码运行(vgg模型)
 ## Training
-python main.py --s 0.001   
+python main_1.py --s 0.001 --train-flag True --prune-flag FLase  
 ## Pruning
-python prune.py --model model_best.pth.tar --save pruned.pth.tar --percent 0.5
+python prune.py --model model_best.pth.tar --save pruned.pth.tar --percent 0.5 --train-flag FLase --prune-flag True 
 ## Retraining
-python main.py --refine pruned.pth.tar --model model_pruning_best.pth.tar --epochs 40
+python main_1.py --refine pruned.pth.tar --model model_pruning_best.pth.tar --epochs 40 --train-flag True --prune-flag FLase
 
 # 运行结果
 ## Training Result
